@@ -1,23 +1,14 @@
 import numpy as np
-
-from UncertainSCI.ttr.compute_ttr import predict_correct_unbounded, stieltjes_unbounded, \
+from UncertainSCI.ttr import predict_correct_unbounded, stieltjes_unbounded, \
         aPC, hankel_deter, mod_cheb, dPI4
-
 from UncertainSCI.utils.compute_moment import compute_freud_moment
-
 from UncertainSCI.utils.quad import gq_modification_unbounded_composite
 from UncertainSCI.families import HermitePolynomials
-
-import UncertainSCI as uSCI
-import os
-path = os.path.join(os.path.dirname(uSCI.__file__), 'utils')
-
-import scipy.io
-ab_true = scipy.io.loadmat(os.path.join(path, 'ab_freud_4.mat'))['coeff']
-t_vpa = scipy.io.loadmat(os.path.join(path, 'time_freud_4.mat'))['time']
-
 import time
 from tqdm import tqdm
+import scipy.io
+ab_true = scipy.io.loadmat('ab_freud_4.mat')['coeff']
+t_vpa = scipy.io.loadmat('time_freud_4.mat')['time']
 
 """
 We use six methods
@@ -29,12 +20,18 @@ We use six methods
 5. mc (Modified Chebyshev algorithm)
 6. dp (Discrete Painlevé I equation method)
 
-to compute the recurrence coefficients for the freud weight function when m = 4.
+to compute the recurrence coefficients for
+the freud weight function when alpha = 4.
 """
 
 a = -np.inf
 b = np.inf
-weight = lambda x: np.exp(-x**4)
+
+
+def weight(x):
+    return np.exp(-x**4)
+
+
 singularity_list = []
 
 N_array = [20, 40, 60, 80, 100]
@@ -55,12 +52,10 @@ e_dp = np.zeros(len(N_array))
 
 iter_n = np.arange(100)
 for k in tqdm(iter_n):
-    
     for ind, N in enumerate(N_array):
-        
         ab = ab_true[:N]
 
-        m = compute_freud_moment(rho = 0, m = 4, n = N)
+        m = compute_freud_moment(rho=0, m=4, n=N)
 
         # Predict-correct
         start = time.time()
@@ -92,12 +87,17 @@ for k in tqdm(iter_n):
 
         # Modified Chebyshev
         H = HermitePolynomials(probability_measure=False)
-        peval = lambda x, n: H.eval(x, n)
+
+        def peval(x, n):
+            return H.eval(x, n)
+
+        def integrand(x):
+            return weight(x) * peval(x, i).flatten()
         mod_m = np.zeros(2*N - 1)
         for i in range(2*N - 1):
-            integrand = lambda x: weight(x) * peval(x,i).flatten()
-            mod_m[i] = gq_modification_unbounded_composite(integrand, a, b, \
-                    10, singularity_list)
+            mod_m[i] = gq_modification_unbounded_composite(integrand,
+                                                           a, b, 10,
+                                                           singularity_list)
         start = time.time()
         ab_mc = mod_cheb(N, mod_m, H)
         end = time.time()
@@ -118,10 +118,12 @@ N_array = [20, 40, 60, 80, 100] with tol = 1e-12
 --- Frobenius norm error ---
 
 e_pc
-array([3.10475162e-15, 5.38559426e-15, 9.24185904e-15, 1.11959041e-14, 1.33658569e-14])
+array([3.10475162e-15, 5.38559426e-15, 9.24185904e-15,
+1.11959041e-14, 1.33658569e-14])
 
 e_sp
-array([8.91113940e-15, 1.42689811e-14, 3.02075444e-14, 5.76568141e-14, 8.63063396e-14])
+array([8.91113940e-15, 1.42689811e-14, 3.02075444e-14,
+5.76568141e-14, 8.63063396e-14])
 
 e_apc
 array([3.97816821e-08, nan, nan, nan, nan])
@@ -157,6 +159,7 @@ t_mc
 array([0.00151602, 0.00616114, 0.01425739, 0.0256006 , 0.04030894])
 
 t_dp
-array([4.32443619e-05, 7.47990608e-05, 1.02679729e-04, 1.38518810e-04, 1.60083771e-04])
+array([4.32443619e-05, 7.47990608e-05, 1.02679729e-04, 1.38518810e-04,
+1.60083771e-04])
 
 """

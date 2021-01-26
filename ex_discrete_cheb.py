@@ -1,11 +1,8 @@
 import numpy as np
-
-from UncertainSCI.ttr.compute_ttr import predict_correct_discrete, stieltjes_discrete, \
+from UncertainSCI.ttr import predict_correct_discrete, stieltjes_discrete, \
         aPC, hankel_deter, mod_cheb, lanczos_stable
-
 from UncertainSCI.utils.compute_moment import compute_moment_discrete
 from UncertainSCI.families import JacobiPolynomials
-
 import time
 from tqdm import tqdm
 
@@ -19,29 +16,29 @@ We use six methods
 5. mc (Modified Chebyshev algorithm)
 6. lz (Stabilized Lanczos algorithm)
 
-to compute the recurrence coefficients for the discrete Chebyshev transformed to [0,1).
+to compute the recurrence coefficients for
+the discrete Chebyshev transformed to [0,1).
 """
+
 
 def discrete_chebyshev(N):
     """
     Return the first N exact recurrence coefficients
     """
-    ab = np.zeros([N,2])
-    ab[1:,0] = (N-1) / (2*N)
-    ab[0,1] = 1.
-    ab[1:,1] = np.sqrt( 1/4 * (1 - (np.arange(1,N)/N)**2) / (4 - (1/np.arange(1,N)**2)) )
-
+    ab = np.zeros([N, 2])
+    ab[1:, 0] = (N-1) / (2*N)
+    ab[0, 1] = 1.
+    ab[1:, 1] = np.sqrt(1/4 * (1 - (np.arange(1, N)/N)**2)
+                        / (4 - (1/np.arange(1, N)**2)))
     return ab
+
 
 # N_array = [37, 38, 39, 40]
 # N_quad = 40
-
 # N_array = [56, 60, 64, 68]
 # N_quad = 80
-
 # N_array = [82, 89, 96, 103]
 # N_quad = 160
-
 N_array = [82, 89, 96, 103]
 N_quad = 320
 
@@ -64,10 +61,8 @@ e_lz = np.zeros(len(N_array))
 
 iter_n = np.arange(100)
 for k in tqdm(iter_n):
-    
     for ind, N in enumerate(N_array):
-        
-        ab = discrete_chebyshev(N_quad)[:N,:]
+        ab = discrete_chebyshev(N_quad)[:N, :]
 
         m = compute_moment_discrete(x, w, N)
 
@@ -101,10 +96,14 @@ for k in tqdm(iter_n):
 
         # Modified Chebyshev
         J = JacobiPolynomials(probability_measure=False)
-        peval = lambda x, n: J.eval(x, n)
+
+        def peval(x, n):
+            return J.eval(x, n)
+
+        def integrand(x):
+            return peval(x, i).flatten()
         mod_m = np.zeros(2*N - 1)
         for i in range(2*N - 1):
-            integrand = lambda x: peval(x,i).flatten()
             mod_m[i] = np.sum(integrand(x) * w)
         start = time.time()
         ab_mc = mod_cheb(N, mod_m, J)
@@ -287,4 +286,3 @@ t_lz
 array([0.01207455, 0.01389778, 0.0154752 , 0.01657487])
 
 """
-

@@ -1,17 +1,11 @@
 import numpy as np
-
-from UncertainSCI.ttr.compute_ttr import predict_correct_discrete, stieltjes_discrete, \
+from UncertainSCI.ttr import predict_correct_discrete, stieltjes_discrete, \
         aPC, hankel_deter, mod_cheb, lanczos_stable
-
 from UncertainSCI.utils.compute_moment import compute_moment_discrete
 from UncertainSCI.families import JacobiPolynomials
-
 from UncertainSCI.utils.verify_orthonormal import verify_orthonormal
-
 import time
 from tqdm import tqdm
-
-import pdb
 
 """
 We use six methods and use Lanczos as the true solution
@@ -23,8 +17,10 @@ We use six methods and use Lanczos as the true solution
 5. mc (Modified Chebyshev algorithm)
 6. lz (Stabilized Lanczos algorithm)
 
-to compute the recurrence coefficients for the discrete probability density function.
+to compute the recurrence coefficients for
+the discrete probability density function.
 """
+
 
 def preprocess_a(a):
     """
@@ -32,12 +28,12 @@ def preprocess_a(a):
     on the model output and we can remove this variable.
     """
     a = a[np.abs(a) > 0.]
-    
     return a
+
 
 def compute_u(a, N):
     """
-    Given the vector a \in R^m (except for 0 vector),
+    Given the vector a in R^m (except for 0 vector),
     compute the equally spaced points {u_i}_{i=0}^N-1
     along the one-dimensional interval
 
@@ -45,25 +41,24 @@ def compute_u(a, N):
     (N,) numpy.array, u = [u_0, ..., u_N-1]
     """
     # assert N % 2 == 1
-    
-    a = preprocess_a(a = a)
+    a = preprocess_a(a=a)
     u_l = np.dot(a, np.sign(-a))
     u_r = np.dot(a, np.sign(a))
     u = np.linspace(u_l, u_r, N)
-
     return u
+
 
 def compute_q(a, N):
     """
-    Given: an vector a \in R^m (except for 0 vector),
+    Given: an vector a in R^m (except for 0 vector),
     compute the discrete approximation to the convolution
-    q(u) = (p_0 * p_1 * ...)(u) = \int p_0(t) p_1(u-t) ... dt
+    q(u) = (p_0 * p_1 * ...)(u) = int p_0(t) p_1(u-t) ... dt
     where x_i ~ UNIF[-1,1], i.e. p_i = 1/2 if |x_i|<=1 or 0 o.w.
 
     Returns
     (N,) numpy.array, q = [q_0, ..., q_N-1]
     """
-    u = compute_u(a = a, N = N)
+    u = compute_u(a=a, N=N)
     q = np.zeros(u.shape)
     q[np.abs(u) <= np.abs(a[0])] = 1 / (2 * np.abs(a[0]))
     if len(a) == 1:
@@ -74,23 +69,24 @@ def compute_q(a, N):
         for j in range(N):
             p = np.zeros(u.shape)
             p[np.abs(u[j] - u) <= np.abs(a[i])] = 1 / (2 * np.abs(a[i]))
-            disc_q[j] = np.trapz(y = q*p, x = u)
+            disc_q[j] = np.trapz(y=q*p, x=u)
         q = disc_q
     return q
 
+
 def compute_q_01(a, N):
     """
-    Given: an vector a \in R^m (except for 0 vector),
+    Given: an vector a in R^m (except for 0 vector),
     compute the discrete approximation to the convolution
-    q(u) = (p_0 * p_1 * ...)(u) = \int p_0(t) p_1(u-t) ... dt
+    q(u) = (p_0 * p_1 * ...)(u) = int p_0(t) p_1(u-t) ... dt
     where x_i ~ UNIF[0,1], i.e. p_i = 1 if 0<=x_i<=1 or 0 o.w.
 
     Returns
     (N,) numpy.array, q = [q_0, ..., q_N-1]
     """
-    u = compute_u(a = a, N = N)
+    u = compute_u(a=a, N=N)
     q = np.zeros(u.shape)
-    q[(0<=u)&(u<=a[0])] = 1 / a[0]
+    q[(0 <= u) & (u <= a[0])] = 1 / a[0]
     if len(a) == 1:
         return q
 
@@ -98,8 +94,8 @@ def compute_q_01(a, N):
         disc_q = np.zeros(u.shape)
         for j in range(N):
             p = np.zeros(u.shape)
-            p[(0<=u[j]-u)&(u[j]-u<=a[i])] = 1 / a[i]
-            disc_q[j] = np.trapz(y = q*p, x = u)
+            p[(0 <= u[j] - u) & (u[j] - u <= a[i])] = 1 / a[i]
+            disc_q[j] = np.trapz(y=q*p, x=u)
         q = disc_q
     return q
 
@@ -107,13 +103,13 @@ def compute_q_01(a, N):
 m = 25
 np.random.seed(1)
 a = np.random.rand(m,) * 2 - 1.
-a = a / np.linalg.norm(a, None) # normalized a
+a = a / np.linalg.norm(a, None)
 
-N_quad = 100 # number of discrete univariable u
-u = compute_u(a = a, N = N_quad)
-du = (u[-1] - u[0]) / (N_quad - 1)
+M = 100
+u = compute_u(a=a, N=M)
+du = (u[-1] - u[0]) / (M - 1)
 
-q = compute_q(a = a, N =  N_quad)
+q = compute_q(a=a, N=M)
 w = du*q
 
 N_array = [20, 40, 60, 80, 100]
@@ -134,68 +130,66 @@ e_lz = np.zeros(len(N_array))
 
 iter_n = np.arange(100)
 for k in tqdm(iter_n):
-    
     for ind, N in enumerate(N_array):
-
         m = compute_moment_discrete(u, w, N)
-        
         # Predict-correct
         start = time.time()
         ab_pc = predict_correct_discrete(u, w, N)
         end = time.time()
         t_pc[ind] += (end - start) / len(iter_n)
-        e_pc[ind] = np.linalg.norm(verify_orthonormal(ab_pc, np.arange(N), u, w) \
-                - np.eye(N), None)
+        e_pc[ind] = np.linalg.norm(verify_orthonormal(ab_pc,
+                                   np.arange(N), u, w) - np.eye(N), None)
 
         # Stieltjes
         start = time.time()
         ab_sp = stieltjes_discrete(u, w, N)
         end = time.time()
         t_sp[ind] += (end - start) / len(iter_n)
-        e_sp[ind] = np.linalg.norm(verify_orthonormal(ab_sp, np.arange(N), u, w) \
-                - np.eye(N), None)
+        e_sp[ind] = np.linalg.norm(verify_orthonormal(ab_sp,
+                                   np.arange(N), u, w) - np.eye(N), None)
 
         # Arbitrary Polynomial Chaos Expansion
         start = time.time()
         ab_apc = aPC(m, N)
         end = time.time()
         t_apc[ind] += (end - start) / len(iter_n)
-        e_apc[ind] = np.linalg.norm(verify_orthonormal(ab_apc, np.arange(N), u, w) \
-                - np.eye(N), None)
+        e_apc[ind] = np.linalg.norm(verify_orthonormal(ab_apc,
+                                    np.arange(N), u, w) - np.eye(N), None)
 
         # Hankel Determinant
         start = time.time()
         ab_hd = hankel_deter(N, m)
         end = time.time()
         t_hd[ind] += (end - start) / len(iter_n)
-        e_hd[ind] = np.linalg.norm(verify_orthonormal(ab_hd, np.arange(N), u, w) \
-                - np.eye(N), None)
+        e_hd[ind] = np.linalg.norm(verify_orthonormal(ab_hd,
+                                   np.arange(N), u, w) - np.eye(N), None)
 
         # Modified Chebyshev
         J = JacobiPolynomials(probability_measure=False)
-        peval = lambda x, n: J.eval(x, n)
+
+        def peval(x, n):
+            return J.eval(x, n)
+
+        def integrand(x):
+            return peval(x, i).flatten()
         mod_m = np.zeros(2*N - 1)
         for i in range(2*N - 1):
-            integrand = lambda x: peval(x,i).flatten()
             mod_m[i] = np.sum(integrand(u) * w)
         start = time.time()
         ab_mc = mod_cheb(N, mod_m, J)
         end = time.time()
         t_mc[ind] += (end - start) / len(iter_n)
-        e_mc[ind] = np.linalg.norm(verify_orthonormal(ab_mc, np.arange(N), u, w) \
-                - np.eye(N), None)
-        
+        e_mc[ind] = np.linalg.norm(verify_orthonormal(ab_mc,
+                                   np.arange(N), u, w) - np.eye(N), None)
         # Stabilized Lanczos
         start = time.time()
         ab_lz = lanczos_stable(u, w, N)
         end = time.time()
         t_lz[ind] += (end - start) / len(iter_n)
-        e_lz[ind] = np.linalg.norm(verify_orthonormal(ab_lz, np.arange(N), u, w) \
-                - np.eye(N), None)
-
-        
+        e_lz[ind] = np.linalg.norm(verify_orthonormal(ab_lz,
+                                   np.arange(N), u, w) - np.eye(N), None)
 """
-N_array = [20, 40, 60, 80, 100] with tol = 1e-12, N_quad = 100
+N_array = [20, 40, 60, 80, 100] with tol = 1e-12, M = 100
 
 --- Frobenius norm error ---
 
@@ -245,7 +239,7 @@ t_lz
 array([0.00102357, 0.00202671, 0.00326769, 0.00459507, 0.00605136])
 
 
-N_array = [20, 40, 60, 80, 100] with tol = 1e-12, N_quad = 200
+N_array = [20, 40, 60, 80, 100] with tol = 1e-12, M = 200
 
 e_pc
 array([3.11798041e-15, 7.39256700e-15, 1.29863095e-14, 9.88664797e-14,
@@ -290,7 +284,7 @@ t_lz
 array([0.00116924, 0.00255765, 0.00427727, 0.00629655, 0.00895607])
 
 
-N_array = [20, 40, 60, 80, 100] with tol = 1e-12, N_quad = 300
+N_array = [20, 40, 60, 80, 100] with tol = 1e-12, M = 300
 
 e_pc
 array([4.53766132e-15, 9.56792320e-15, 1.49645839e-14, 2.46683586e-14,

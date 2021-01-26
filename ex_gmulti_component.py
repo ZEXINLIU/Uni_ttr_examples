@@ -1,22 +1,17 @@
 import numpy as np
-
-from UncertainSCI.ttr.compute_ttr import predict_correct_discrete, stieltjes_discrete, \
-        aPC, hankel_deter, mod_cheb, lanczos_stable
-from UncertainSCI.ttr.compute_ttr import predict_correct_unbounded
-
-from UncertainSCI.families import JacobiPolynomials
+from UncertainSCI.ttr import lanczos_stable
+from UncertainSCI.ttr import predict_correct_unbounded
 from UncertainSCI.opoly1d import gauss_quadrature_driver
-
 from UncertainSCI.utils.verify_orthonormal import verify_orthonormal
-
-import time
-from tqdm import tqdm
-
-import pdb
 
 a = 0.
 b = np.inf
-weight = lambda x: np.exp(-x**2)
+
+
+def weight(x):
+    return np.exp(-x**2)
+
+
 singularity_list = []
 
 N_array = [20, 40, 60, 80, 100]
@@ -26,59 +21,57 @@ eps = 1e-12
 
 e_pcl = np.zeros(len(N_array),)
 
-start = time.time()
+adaptive = False
+
 for ind, N in enumerate(N_array):
 
-    # ab_pc = predict_correct_unbounded(a, b, weight, N+1, singularity_list)
-    # xc,wc = gauss_quadrature_driver(ab_pc, N)
-    # xd = -np.arange(M) / M
-    # wd = (1/M) * np.ones(len(xd))
-    # xg = np.hstack([xd[::-1], xc])
-    # wg = np.hstack([wd, wc])
-    # ab = lanczos_stable(xg, wg, N)
-    # e_pcl[ind] = np.linalg.norm(verify_orthonormal(ab, np.arange(N), xg, wg) \
-            # - np.eye(N), None)
-            
-    i = 0
-    K0 = N
-    ab_pc = predict_correct_unbounded(a, b, weight, K0+1, singularity_list)
-    xc,wc = gauss_quadrature_driver(ab_pc, K0)
-    xd = -np.arange(M) / M
-    wd = (1/M) * np.ones(len(xd))
-    xg = np.hstack([xd[::-1], xc])
-    wg = np.hstack([wd, wc])
-    ab = lanczos_stable(xg, wg, N)
+    if not adaptive:
+        ab_pc = predict_correct_unbounded(a, b, weight, N+1, singularity_list)
+        xc, wc = gauss_quadrature_driver(ab_pc, N)
+        xd = -np.arange(M) / M
+        wd = (1/M) * np.ones(len(xd))
+        xg = np.hstack([xd[::-1], xc])
+        wg = np.hstack([wd, wc])
+        ab = lanczos_stable(xg, wg, N)
+        e_pcl[ind] = np.linalg.norm(verify_orthonormal(ab, np.arange(N),
+                                    xg, wg) - np.eye(N), None)
+    else:
+        i = 0
+        K0 = N
+        ab_pc = predict_correct_unbounded(a, b, weight, K0+1, singularity_list)
+        xc, wc = gauss_quadrature_driver(ab_pc, K0)
+        xd = -np.arange(M) / M
+        wd = (1/M) * np.ones(len(xd))
+        xg = np.hstack([xd[::-1], xc])
+        wg = np.hstack([wd, wc])
+        ab = lanczos_stable(xg, wg, N)
 
-    i = 1
-    K = K0 + 1
-    ab_pc = predict_correct_unbounded(a, b, weight, K+1, singularity_list)
-    xc,wc = gauss_quadrature_driver(ab_pc, K)
-    xd = -np.arange(M) / M
-    wd = (1/M) * np.ones(len(xd))
-    xg = np.hstack([xd[::-1], xc])
-    wg = np.hstack([wd, wc])
-    ab_new = lanczos_stable(xg, wg, N)
-
-    while any(np.abs(ab[:,1] - ab_new[:,1]) > eps * np.abs(ab_new[:,1])) and K < 150:
-        ab = ab_new
-        i += 1
-        print (i)
-        K = K + int(2**(np.floor(i/5)) * N)
-        print (K)
+        i = 1
+        K = K0 + 1
         ab_pc = predict_correct_unbounded(a, b, weight, K+1, singularity_list)
-        xc,wc = gauss_quadrature_driver(ab_pc, K)
+        xc, wc = gauss_quadrature_driver(ab_pc, K)
         xd = -np.arange(M) / M
         wd = (1/M) * np.ones(len(xd))
         xg = np.hstack([xd[::-1], xc])
         wg = np.hstack([wd, wc])
         ab_new = lanczos_stable(xg, wg, N)
 
-    e_pcl[ind] = np.linalg.norm(verify_orthonormal(ab_new, np.arange(N), xg, wg) \
-            - np.eye(N), None)
+        while any(np.abs(ab[:, 1] - ab_new[:, 1]) >
+                  eps * np.abs(ab_new[:, 1])) and K < 150:
+            ab = ab_new
+            i += 1
+            K = K + int(2**(np.floor(i/5)) * N)
+            ab_pc = predict_correct_unbounded(a, b, weight, K+1,
+                                              singularity_list)
+            xc, wc = gauss_quadrature_driver(ab_pc, K)
+            xd = -np.arange(M) / M
+            wd = (1/M) * np.ones(len(xd))
+            xg = np.hstack([xd[::-1], xc])
+            wg = np.hstack([wd, wc])
+            ab_new = lanczos_stable(xg, wg, N)
 
-
-end = time.time()
-t = end - start
+        e_pcl[ind] = np.linalg.norm(verify_orthonormal(ab_new, np.arange(N),
+                                    xg, wg) - np.eye(N), None)
 
 """
 N_array = [20, 40, 60, 80, 100] with tol = 1e-12
