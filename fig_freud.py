@@ -108,4 +108,5 @@ axs[1, 1].set_xlabel(r'$N$')
 axs[1, 1].set_ylabel(r'$e_N$')
 
 plt.tight_layout()
+plt.savefig('Fig1.eps', format='eps')
 plt.show()
